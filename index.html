@@ -121,14 +121,35 @@
     font-family:"Zen Kaku Gothic New", sans-serif; font-size:11px; font-weight:500;
     letter-spacing:.03em; border-radius:2px; padding:8px 4px; cursor:pointer;
   }
-  #gemelliToast{
-    position:fixed; left:50%; bottom:90px; transform:translate(-50%, 10px);
-    background:var(--ink); color:#fff; padding:10px 16px; border-radius:6px;
-    font-size:12.5px; font-family:"Zen Kaku Gothic New", sans-serif;
-    opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease;
-    z-index:100; max-width:80vw; text-align:center;
+  #dmConfirmOverlay{
+    position:fixed; inset:0; background:rgba(30,24,20,.72); z-index:210;
+    display:none; align-items:center; justify-content:center; padding:24px;
   }
-  #gemelliToast.show{ opacity:1; transform:translate(-50%, 0); }
+  #dmConfirmOverlay.open{ display:flex; }
+  #dmConfirmBox{
+    background:#FFFDF9; border-radius:8px; max-width:320px; width:100%;
+    padding:22px 20px; font-family:"Zen Kaku Gothic New", sans-serif;
+    box-shadow:0 12px 30px rgba(0,0,0,.3); text-align:center;
+  }
+  #dmConfirmLabel{
+    font-family:"Shippori Mincho", serif; font-size:14px; font-weight:800;
+    color:var(--rosewood); margin-bottom:10px;
+  }
+  #dmConfirmText{
+    background:#F5EEDF; border:1px solid var(--gold-light); border-radius:4px;
+    padding:12px; font-size:13px; color:var(--ink); margin-bottom:8px;
+    word-break:break-word;
+  }
+  #dmConfirmHint{ font-size:11.5px; color:var(--ink-soft); margin-bottom:16px; }
+  #dmConfirmOpenBtn{
+    width:100%; padding:12px; font-size:14px; font-weight:700; border:none;
+    border-radius:4px; background:var(--rosewood); color:#fff; cursor:pointer;
+    margin-bottom:8px;
+  }
+  #dmConfirmCancelBtn{
+    width:100%; padding:8px; font-size:12.5px; border:none; background:none;
+    color:var(--ink-soft); cursor:pointer;
+  }
 
   #myCatalog{
     max-width:900px; margin:0 auto; padding:16px 16px 18px; 
@@ -163,10 +184,10 @@
     font-size:11px; color:var(--ink-soft); margin-top:6px; white-space:nowrap;
     overflow:hidden; text-overflow:ellipsis; letter-spacing:.02em;
   }
-  .my-catalog-remove{
-    position:absolute; top:-7px; right:-7px; width:22px; height:22px; border-radius:50%;
-    background:var(--rosewood); color:#fff; border:2px solid #FFFDF9; font-size:12px; line-height:1;
-    cursor:pointer; z-index:2; box-shadow:0 2px 4px rgba(0,0,0,.2);
+  .my-catalog-zoom{
+    position:absolute; bottom:4px; right:4px; width:20px; height:20px; border-radius:50%;
+    background:rgba(43,36,32,.55); color:#fff; display:flex; align-items:center;
+    justify-content:center; font-size:11px; z-index:2; pointer-events:none;
   }
   .my-catalog-empty-box{
     width:100%; border:1px dashed var(--gold-light); border-radius:8px;
@@ -965,29 +986,45 @@ const LINE_OA_ID = "630uilbh"; // GEMELLI公式LINE ID
 const IG_USERNAME = "gemelli0108"; // GEMELLI公式Instagramユーザー名
 const STORAGE_KEY = "gemelli_interested_v1";
 
-function showToast(text){
-  let toast = document.getElementById("gemelliToast");
-  if(!toast){
-    toast = document.createElement("div");
-    toast.id = "gemelliToast";
-    document.body.appendChild(toast);
+function showDmConfirmModal(text){
+  let overlay = document.getElementById("dmConfirmOverlay");
+  if(!overlay){
+    overlay = document.createElement("div");
+    overlay.id = "dmConfirmOverlay";
+    overlay.innerHTML =
+      '<div id="dmConfirmBox">' +
+        '<div id="dmConfirmLabel">この文章をコピーしました</div>' +
+        '<div id="dmConfirmText"></div>' +
+        '<div id="dmConfirmHint">DMを開いたら、メッセージ欄に貼り付けて送信してください</div>' +
+        '<button type="button" id="dmConfirmOpenBtn">DMを開く</button>' +
+        '<button type="button" id="dmConfirmCancelBtn">キャンセル</button>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener("click", function(e){
+      if(e.target === overlay) overlay.classList.remove("open");
+    });
+    document.getElementById("dmConfirmCancelBtn").addEventListener("click", function(){
+      overlay.classList.remove("open");
+    });
   }
-  toast.textContent = text;
-  toast.classList.add("show");
-  clearTimeout(showToast._t);
-  showToast._t = setTimeout(function(){ toast.classList.remove("show"); }, 2600);
+  document.getElementById("dmConfirmText").textContent = text;
+  const openBtn = document.getElementById("dmConfirmOpenBtn");
+  const newOpenBtn = openBtn.cloneNode(true); // 前回のリスナーを消すため差し替え
+  openBtn.parentNode.replaceChild(newOpenBtn, openBtn);
+  newOpenBtn.addEventListener("click", function(){
+    window.open("https://ig.me/m/" + IG_USERNAME, "_blank", "noopener");
+    overlay.classList.remove("open");
+  });
+  overlay.classList.add("open");
 }
 
 function openDmWithMessage(code){
   const text = code + "について質問があります";
-  const afterOpen = function(){
-    window.open("https://ig.me/m/" + IG_USERNAME, "_blank", "noopener");
-    showToast("文章をコピーしました。DMの画面に貼り付けて送信してください");
-  };
+  const afterCopy = function(){ showDmConfirmModal(text); };
   if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(afterOpen, afterOpen);
+    navigator.clipboard.writeText(text).then(afterCopy, afterCopy);
   }else{
-    afterOpen();
+    afterCopy();
   }
 }
 
@@ -1100,14 +1137,11 @@ document.getElementById("myCatalogDmBtn").addEventListener("click", function(){
   const list = getSavedItems();
   const codes = list.map(function(it){ return it.code; }).join("、");
   const text = (codes ? codes + "について質問があります" : "気になる商品について質問があります");
-  const afterOpen = function(){
-    window.open("https://ig.me/m/" + IG_USERNAME, "_blank", "noopener");
-    showToast("文章をコピーしました。DMの画面に貼り付けて送信してください");
-  };
+  const afterCopy = function(){ showDmConfirmModal(text); };
   if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(afterOpen, afterOpen);
+    navigator.clipboard.writeText(text).then(afterCopy, afterCopy);
   }else{
-    afterOpen();
+    afterCopy();
   }
 });
 
@@ -1169,7 +1203,7 @@ function renderMyCatalog(){
   if(list.length === 0){
     rowEl.innerHTML = '<div class="my-catalog-empty-box">' +
       '<span class="my-catalog-empty-heart">♡</span>' +
-      '<span>気になった商品はここに♡</span>' +
+      '<span>♡した商品はこちらに</span>' +
     '</div>';
     actionsEl.style.display = "none";
     return;
@@ -1180,8 +1214,8 @@ function renderMyCatalog(){
   rowEl.innerHTML = list.map(function(it){
     const info = getProductInfo(it.code);
     return '<div class="my-catalog-item" data-code="' + it.code + '">' +
-      '<button type="button" class="my-catalog-remove" data-code="' + it.code + '">×</button>' +
       (info.src ? '<img src="' + info.src + '" alt="">' : '<div class="my-catalog-noimg"></div>') +
+      '<span class="my-catalog-zoom">🔍</span>' +
       '<div class="my-catalog-code">' + it.code + '</div>' +
     '</div>';
   }).join("");
@@ -1189,19 +1223,6 @@ function renderMyCatalog(){
   rowEl.querySelectorAll(".my-catalog-item").forEach(function(itemEl){
     itemEl.addEventListener("click", function(){
       openMyCatalogModal(itemEl.dataset.code);
-    });
-  });
-
-  rowEl.querySelectorAll(".my-catalog-remove").forEach(function(btn){
-    btn.addEventListener("click", function(e){
-      e.stopPropagation();
-      toggleSaved(btn.dataset.code, "");
-      document.querySelectorAll(".btn-heart").forEach(function(hb){
-        if(hb.dataset.code === btn.dataset.code){
-          hb.classList.remove("active");
-          hb.textContent = "♡ 気になる";
-        }
-      });
     });
   });
 
