@@ -106,7 +106,7 @@
     font-weight:500; letter-spacing:.03em; border-radius:2px; cursor:pointer;
     font-family:"Zen Kaku Gothic New", sans-serif; text-decoration:none;
     display:block; box-sizing:border-box;
-    background:#FFFDF9; color:var(--ink-soft); border:1px solid var(--gold-light);
+    background:#FFFDF9; color:var(--ink-soft); border:1px solid var(--line);
     transition:background .2s ease, color .2s ease, border-color .2s ease;
   }
   .btn-heart.active{ background:var(--rosewood); color:#fff; border-color:var(--rosewood); }
@@ -117,7 +117,7 @@
   .btn-row{ display:flex; gap:6px; }
   .btn-row .btn-line, .btn-row .btn-dm, .btn-row #cartLineBtn, .btn-row #cartDmBtn{ flex:1; }
   .btn-dm{
-    background:#FFFDF9; color:var(--ink-soft); border:1px solid var(--gold-light);
+    background:#FFFDF9; color:var(--ink-soft); border:1px solid var(--line);
     font-family:"Zen Kaku Gothic New", sans-serif; font-size:11px; font-weight:500;
     letter-spacing:.03em; border-radius:2px; padding:8px 4px; cursor:pointer;
   }
@@ -185,9 +185,16 @@
     overflow:hidden; text-overflow:ellipsis; letter-spacing:.02em;
   }
   .my-catalog-zoom{
-    position:absolute; bottom:4px; right:4px; width:20px; height:20px; border-radius:50%;
-    background:rgba(43,36,32,.55); color:#fff; display:flex; align-items:center;
-    justify-content:center; font-size:11px; z-index:2; pointer-events:none;
+    position:absolute; bottom:3px; right:3px; width:15px; height:15px; border-radius:50%;
+    background:#FFFDF9; border:1px solid var(--gold-light); color:var(--gold);
+    display:flex; align-items:center; justify-content:center;
+    font-size:8px; z-index:2; pointer-events:none;
+  }
+  .my-catalog-remove{
+    position:absolute; top:-6px; right:-6px; width:17px; height:17px; border-radius:50%;
+    background:#FFFDF9; border:1px solid var(--gold-light); color:var(--ink-soft);
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; line-height:1; z-index:3; cursor:pointer;
   }
   .my-catalog-empty-box{
     width:100%; border:1px dashed var(--gold-light); border-radius:8px;
@@ -1214,6 +1221,7 @@ function renderMyCatalog(){
   rowEl.innerHTML = list.map(function(it){
     const info = getProductInfo(it.code);
     return '<div class="my-catalog-item" data-code="' + it.code + '">' +
+      '<button type="button" class="my-catalog-remove" data-code="' + it.code + '">×</button>' +
       (info.src ? '<img src="' + info.src + '" alt="">' : '<div class="my-catalog-noimg"></div>') +
       '<span class="my-catalog-zoom">🔍</span>' +
       '<div class="my-catalog-code">' + it.code + '</div>' +
@@ -1223,6 +1231,19 @@ function renderMyCatalog(){
   rowEl.querySelectorAll(".my-catalog-item").forEach(function(itemEl){
     itemEl.addEventListener("click", function(){
       openMyCatalogModal(itemEl.dataset.code);
+    });
+  });
+
+  rowEl.querySelectorAll(".my-catalog-remove").forEach(function(btn){
+    btn.addEventListener("click", function(e){
+      e.stopPropagation();
+      toggleSaved(btn.dataset.code, "");
+      document.querySelectorAll(".btn-heart").forEach(function(hb){
+        if(hb.dataset.code === btn.dataset.code){
+          hb.classList.remove("active");
+          hb.textContent = "♡ 気になる";
+        }
+      });
     });
   });
 
