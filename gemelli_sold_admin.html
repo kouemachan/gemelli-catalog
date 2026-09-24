@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEMELLI SOLD切替(社内用)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ivory:#FAF6EF; --ink:#2B2420; --ink-soft:#6b6259;
+    --gold:#A9814C; --gold-light:#D8BD8E; --rosewood:#6E463C; --line:#E7DFD1;
+    --green:#3E7A4E;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--ivory); color:var(--ink); font-family:"Zen Kaku Gothic New", sans-serif; }
+  header{ padding:20px 16px 14px; text-align:center; border-bottom:1px solid var(--line); }
+  h1{ font-family:"Shippori Mincho", serif; font-size:20px; margin:0 0 4px; }
+  .warn{ font-size:12px; color:var(--rosewood); font-weight:700; }
+  .status{ text-align:center; font-size:12px; color:var(--ink-soft); padding:10px; min-height:18px; }
+  main{ max-width:640px; margin:0 auto; padding:8px 14px 60px; }
+  .row{
+    display:flex; align-items:center; gap:12px;
+    padding:14px 10px; border-bottom:1px solid var(--line);
+  }
+  .row.sold{ background:#F5EDE9; }
+  .rcode{ font-family:"Shippori Mincho", serif; font-weight:800; font-size:14px; width:92px; flex:0 0 92px; }
+  .rname{ flex:1; font-size:12.5px; color:var(--ink-soft); line-height:1.4; }
+  .switch{
+    position:relative; flex:0 0 56px; width:56px; height:30px;
+    background:#ccc2b3; border-radius:999px; cursor:pointer; transition:background .15s ease;
+  }
+  .switch.on{ background:var(--green); }
+  .switch .knob{
+    position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%;
+    background:#fff; transition:left .15s ease; box-shadow:0 1px 3px rgba(0,0,0,.3);
+  }
+  .switch.on .knob{ left:29px; }
+  .label{ flex:0 0 60px; text-align:center; font-size:11px; font-weight:700; color:var(--ink-soft); }
+  .label.on{ color:var(--green); }
+  #configBox{ max-width:640px; margin:14px auto; padding:12px 16px; background:#FFFDF9; border:1px solid var(--gold-light); border-radius:6px; }
+  #configBox label{ font-size:12px; color:var(--ink-soft); display:block; margin-bottom:6px; }
+  #configBox input{ width:100%; padding:8px; font-size:12px; border:1px solid var(--line); border-radius:4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>GEMELLI SOLD OUT 切替</h1>
+  <div class="warn">社内・営業用ページです。お客様には共有しないでください</div>
+</header>
+
+<div id="configBox" style="display:none;">
+  <label>Apps Script URL(初回のみ入力・自動保存されます)</label>
+  <input type="text" id="urlInput" placeholder="https://script.google.com/macros/s/.../exec">
+</div>
+
+<div class="status" id="statusMsg">読み込み中...</div>
+
+<main id="list"></main>
+
+<script>
+const ITEMS = [{"code": "D-1", "name": "Pt900 ダイヤモンドパヴェリング  (社内:12603853)"}, {"code": "D-2", "name": "Pt900 ダイヤモンドリング(フラワー)  (社内:12603855)"}, {"code": "D-3", "name": "Pt900 ダイヤモンドリング(フラワー)  (社内:12603858)"}, {"code": "D-4", "name": "K18YG ダイヤモンドリング(フラワー)  (社内:12603852)"}, {"code": "D-5", "name": "Pt900 ダイヤモンドリング(フラワー)  (社内:12603849)"}, {"code": "D-6", "name": "Pt900 5石ダイヤモンドエタニティリング  (社内:—)"}, {"code": "D-7", "name": "K18 5石ダイヤモンドエタニティリング  (社内:42603602)"}, {"code": "CD-1", "name": "Pt900 ファンシーディープイエローダイヤモンドリング  (社内:12603437)"}, {"code": "CD-2", "name": "K18PG ライトイエローダイヤモンドリング  (社内:12603505)"}, {"code": "CD-3", "name": "Pt900 トリートダイヤモンドリング  (社内:12603440)"}, {"code": "CD-4", "name": "Pt950 ファンシーインテンスイエローダイヤモンドリング(ハート)  (社内:12603783)"}, {"code": "CD-5", "name": "Pt950 ファンシーオレンジイエローダイヤモンドリング(ペアシェイプ)  (社内:12603785)"}, {"code": "CS-1", "name": "Pt900 スフェーンリング  (社内:42603598)"}, {"code": "CS-2", "name": "Pt900 マリガーネットリング  (社内:42603634)"}, {"code": "CS-3", "name": "Pt900 アレキサンドライトリング  (社内:42603615)"}, {"code": "CS-4", "name": "K18 モルガナイトリング  (社内:42603621)"}, {"code": "CS-5", "name": "Pt900 ピジョンブラッドルビーリング  (社内:42603596)"}, {"code": "N-1", "name": "K18 ライトグリニッシュイエローダイヤモンドネックレス  (社内:12602831)"}, {"code": "N-2", "name": "Pt900/850 非加熱ピジョンブラッドルビーネックレス  (社内:12603586)"}, {"code": "N-3", "name": "Pt900/950 アウイナイトネックレス  (社内:12603117)"}, {"code": "N-4", "name": "Pt900/950 ベニトアイトネックレス  (社内:12603135)"}, {"code": "N-5", "name": "Pt900/850 スフェーンネックレス(馬蹄)  (社内:12603590)"}, {"code": "N-6", "name": "Pt950/850 ダイヤモンドネックレス(マーキス)  (社内:42603531)"}, {"code": "F-1", "name": "Pt900 ダイヤリング枠(空枠)  (社内:12603861)"}, {"code": "F-2", "name": "K18YG ダイヤリング枠(空枠)  (社内:12603865)"}, {"code": "F-3", "name": "Pt900 ダイヤリング枠(空枠)  (社内:12603868)"}, {"code": "F-4", "name": "Pt900 ダイヤリング枠(空枠)  (社内:12603869)"}, {"code": "F-5", "name": "Pt900 ダイヤモンドピアス枠(空枠)  (社内:12603842)"}, {"code": "F-6", "name": "Pt900 ダイヤピアス枠(空枠)  (社内:12603846)"}];
+let APPS_SCRIPT_URL = localStorage.getItem("gemelli_admin_gas_url") || "https://script.google.com/macros/s/AKfycbxjxn_d-_nPpJ0cmAW1Wr7_wfQyVOUiOHQPyHwTnPI7f9PdjpmtXrIBHsx2Sbgva00n/exec";
+
+const listEl = document.getElementById("list");
+const statusEl = document.getElementById("statusMsg");
+const configBox = document.getElementById("configBox");
+const urlInput = document.getElementById("urlInput");
+
+if(!APPS_SCRIPT_URL){
+  configBox.style.display = "block";
+}
+urlInput.value = APPS_SCRIPT_URL;
+urlInput.addEventListener("change", function(){
+  APPS_SCRIPT_URL = urlInput.value.trim();
+  localStorage.setItem("gemelli_admin_gas_url", APPS_SCRIPT_URL);
+  loadStatus();
+});
+
+function renderRows(soldMap){
+  listEl.innerHTML = "";
+  ITEMS.forEach(function(item){
+    const isSold = !!soldMap[item.code];
+    const row = document.createElement("div");
+    row.className = "row" + (isSold ? " sold" : "");
+    row.innerHTML =
+      '<div class="rcode">' + item.code + '</div>' +
+      '<div class="rname">' + item.name + '</div>' +
+      '<div class="label' + (isSold ? ' on' : '') + '">' + (isSold ? "SOLD" : "在庫あり") + '</div>' +
+      '<div class="switch' + (isSold ? ' on' : '') + '" data-code="' + item.code + '"><div class="knob"></div></div>';
+    listEl.appendChild(row);
+  });
+
+  listEl.querySelectorAll(".switch").forEach(function(sw){
+    sw.addEventListener("click", function(){
+      const code = sw.dataset.code;
+      const turningOn = !sw.classList.contains("on");
+      setSold(code, turningOn, sw);
+    });
+  });
+}
+
+function loadStatus(){
+  if(!APPS_SCRIPT_URL){
+    statusEl.textContent = "上のURL欄にApps ScriptのURLを入力してください";
+    renderRows({});
+    return;
+  }
+  statusEl.textContent = "読み込み中...";
+  fetch(APPS_SCRIPT_URL)
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      const soldMap = {};
+      (data.items || []).forEach(function(it){ soldMap[it.code] = it.sold; });
+      renderRows(soldMap);
+      statusEl.textContent = "最新の状態を取得しました";
+    })
+    .catch(function(){
+      statusEl.textContent = "読み込みに失敗しました(URLを確認してください)";
+      renderRows({});
+    });
+}
+
+function setSold(code, sold, swEl){
+  statusEl.textContent = "更新中...";
+  swEl.classList.toggle("on", sold);
+  swEl.closest(".row").classList.toggle("sold", sold);
+  const labelEl = swEl.parentElement.querySelector(".label");
+  labelEl.textContent = sold ? "SOLD" : "在庫あり";
+  labelEl.classList.toggle("on", sold);
+
+  fetch(APPS_SCRIPT_URL, {
+    method: "POST",
+    headers: {"Content-Type":"text/plain"},
+    body: JSON.stringify({ action:"setSold", code: code, sold: sold })
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      statusEl.textContent = res.ok ? "更新しました" : "この品番が見つかりませんでした(スプレッドシート要確認)";
+    })
+    .catch(function(){
+      statusEl.textContent = "更新に失敗しました(通信エラー)";
+    });
+}
+
+loadStatus();
+</script>
+
+</body>
+</html>
