@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEMELLI お客様アクション状況(社内用)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ivory:#FAF6EF; --ink:#2B2420; --ink-soft:#6b6259;
+    --gold:#A9814C; --gold-light:#D8BD8E; --rosewood:#6E463C; --line:#E7DFD1;
+    --heart:#C0546B; --line-green:#3E9B3E; --dm:#5B6EC7;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--ivory); color:var(--ink); font-family:"Zen Kaku Gothic New", sans-serif; }
+  header{ padding:20px 16px 14px; text-align:center; border-bottom:1px solid var(--line); }
+  h1{ font-family:"Shippori Mincho", serif; font-size:19px; margin:0 0 4px; }
+  .warn{ font-size:12px; color:var(--rosewood); font-weight:700; }
+  .status{ text-align:center; font-size:12px; color:var(--ink-soft); padding:10px; min-height:18px; }
+  main{ max-width:680px; margin:0 auto; padding:8px 14px 60px; }
+
+  #configBox{ margin:14px 0; padding:12px 16px; background:#FFFDF9; border:1px solid var(--gold-light); border-radius:6px; }
+  #configBox label{ font-size:12px; color:var(--ink-soft); display:block; margin-bottom:6px; }
+  #configBox input{ width:100%; padding:8px; font-size:12px; border:1px solid var(--line); border-radius:4px; }
+
+  .totals{ display:flex; gap:10px; margin:16px 0; }
+  .totalCard{
+    flex:1; background:#FFFDF9; border:1px solid var(--line); border-radius:8px;
+    padding:14px 8px; text-align:center;
+  }
+  .totalCard .num{ font-family:"Shippori Mincho", serif; font-size:24px; font-weight:800; }
+  .totalCard.heart .num{ color:var(--heart); }
+  .totalCard.line .num{ color:var(--line-green); }
+  .totalCard.dm .num{ color:var(--dm); }
+  .totalCard.visitor .num, .totalCard.view .num{ color:var(--gold); }
+  .totalCard .label{ font-size:11px; color:var(--ink-soft); margin-top:2px; }
+
+  h2.section{
+    font-family:"Shippori Mincho", serif; font-size:15px; font-weight:800;
+    margin:26px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--line);
+  }
+
+  table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  th, td{ text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  th{ color:var(--ink-soft); font-weight:700; font-size:11.5px; }
+  td.num{ text-align:right; font-weight:700; white-space:nowrap; }
+  .rcode{ font-family:"Shippori Mincho", serif; font-weight:800; }
+  .rname{ color:var(--ink-soft); font-size:11.5px; }
+  .badge{
+    display:inline-block; font-size:10.5px; font-weight:700; color:#fff;
+    border-radius:4px; padding:2px 6px; margin-right:2px;
+  }
+  .badge.heart{ background:var(--heart); }
+  .badge.line{ background:var(--line-green); }
+  .badge.dm{ background:var(--dm); }
+
+  .feedRow{
+    display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line);
+    font-size:12.5px;
+  }
+  .feedTime{ flex:0 0 118px; color:var(--ink-soft); font-size:11px; }
+  .feedCode{ flex:0 0 62px; font-family:"Shippori Mincho", serif; font-weight:800; }
+  .feedType{ flex:1; }
+
+  .empty{ text-align:center; color:var(--ink-soft); font-size:12px; padding:20px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>GEMELLI お客様アクション状況</h1>
+  <div class="warn">社内用ページです。お客様には共有しないでください</div>
+</header>
+
+<main>
+
+<div id="configBox" style="display:none;">
+  <label>Apps Script URL(初回のみ入力・自動保存されます)</label>
+  <input type="text" id="urlInput" placeholder="https://script.google.com/macros/s/.../exec">
+</div>
+
+<div class="status" id="statusMsg">読み込み中...</div>
+
+<div class="totals">
+  <div class="totalCard visitor"><div class="num" id="totalVisitor">-</div><div class="label">訪問者数(ユニーク)</div></div>
+  <div class="totalCard view"><div class="num" id="totalView">-</div><div class="label">閲覧数(PV)</div></div>
+</div>
+<div class="totals">
+  <div class="totalCard heart"><div class="num" id="totalHeart">-</div><div class="label">気になる♡</div></div>
+  <div class="totalCard line"><div class="num" id="totalLine">-</div><div class="label">LINE問い合わせ</div></div>
+  <div class="totalCard dm"><div class="num" id="totalDm">-</div><div class="label">DM問い合わせ</div></div>
+</div>
+
+<h2 class="section">商品別の反応</h2>
+<table id="rankTable">
+  <thead>
+    <tr><th>品番</th><th>商品名</th><th class="num">♡</th><th class="num">LINE</th><th class="num">DM</th></tr>
+  </thead>
+  <tbody id="rankBody"></tbody>
+</table>
+<div class="empty" id="rankEmpty" style="display:none;">まだ反応がありません</div>
+
+<h2 class="section">最近のアクション(新しい順・最大100件)</h2>
+<div id="feedList"></div>
+<div class="empty" id="feedEmpty" style="display:none;">まだ記録がありません</div>
+
+</main>
+
+<script>
+const ITEMS = [{"code": "D-1", "name": "Pt900 ダイヤモンドパヴェリング  (社内:12603853)"}, {"code": "D-2", "name": "Pt900 ダイヤモンドリング(フラワー)  (社内:12603855)"}, {"code": "D-3", "name": "Pt900 ダイヤモンドリング(フラワー)  (社内:12603858)"}, {"code": "D-4", "name": "K18YG ダイヤモンドリング(フラワー)  (社内:12603852)"}, {"code": "D-5", "name": "Pt900 ダイヤモンドリング(フラワー)  (社内:12603849)"}, {"code": "D-6", "name": "Pt900 5石ダイヤモンドエタニティリング  (社内:—)"}, {"code": "D-7", "name": "K18 5石ダイヤモンドエタニティリング  (社内:42603602)"}, {"code": "CD-1", "name": "Pt900 ファンシーディープイエローダイヤモンドリング  (社内:12603437)"}, {"code": "CD-2", "name": "K18PG ライトイエローダイヤモンドリング  (社内:12603505)"}, {"code": "CD-3", "name": "Pt900 トリートダイヤモンドリング  (社内:12603440)"}, {"code": "CD-4", "name": "Pt950 ファンシーインテンスイエローダイヤモンドリング(ハート)  (社内:12603783)"}, {"code": "CD-5", "name": "Pt950 ファンシーオレンジイエローダイヤモンドリング(ペアシェイプ)  (社内:12603785)"}, {"code": "CS-1", "name": "Pt900 スフェーンリング  (社内:42603598)"}, {"code": "CS-2", "name": "Pt900 マリガーネットリング  (社内:42603634)"}, {"code": "CS-3", "name": "Pt900 アレキサンドライトリング  (社内:42603615)"}, {"code": "CS-4", "name": "K18 モルガナイトリング  (社内:42603621)"}, {"code": "CS-5", "name": "Pt900 ピジョンブラッドルビーリング  (社内:42603596)"}, {"code": "CS-6", "name": "K18 コーネルピンリング  (社内:12603584)"}, {"code": "N-1", "name": "K18 ライトグリニッシュイエローダイヤモンドネックレス  (社内:12602831)"}, {"code": "N-2", "name": "Pt900/850 非加熱ピジョンブラッドルビーネックレス  (社内:12603586)"}, {"code": "N-3", "name": "Pt900/950 アウイナイトネックレス  (社内:12603117)"}, {"code": "N-4", "name": "Pt900/950 ベニトアイトネックレス  (社内:12603135)"}, {"code": "N-5", "name": "Pt900/850 スフェーンネックレス(馬蹄)  (社内:12603590)"}, {"code": "N-6", "name": "Pt950/850 ダイヤモンドネックレス(マーキス)  (社内:42603531)"}, {"code": "F-1", "name": "Pt900 ダイヤリング枠(空枠)  (社内:12603861)"}, {"code": "F-2", "name": "K18YG ダイヤリング枠(空枠)  (社内:12603865)"}, {"code": "F-3", "name": "Pt900 ダイヤリング枠(空枠)  (社内:12603868)"}, {"code": "F-4", "name": "Pt900 ダイヤリング枠(空枠)  (社内:12603869)"}, {"code": "F-5", "name": "Pt900 ダイヤモンドピアス枠(空枠)  (社内:12603842)"}, {"code": "F-6", "name": "Pt900 ダイヤピアス枠(空枠)  (社内:12603846)"}];
+let APPS_SCRIPT_URL = localStorage.getItem("gemelli_admin_gas_url") || "https://script.google.com/macros/s/AKfycbxjxn_d-_nPpJ0cmAW1Wr7_wfQyVOUiOHQPyHwTnPI7f9PdjpmtXrIBHsx2Sbgva00n/exec";
+
+const statusEl = document.getElementById("statusMsg");
+const configBox = document.getElementById("configBox");
+const urlInput = document.getElementById("urlInput");
+
+if(!APPS_SCRIPT_URL){
+  configBox.style.display = "block";
+}
+urlInput.value = APPS_SCRIPT_URL;
+urlInput.addEventListener("change", function(){
+  APPS_SCRIPT_URL = urlInput.value.trim();
+  localStorage.setItem("gemelli_admin_gas_url", APPS_SCRIPT_URL);
+  load();
+});
+
+const nameByCode = {};
+ITEMS.forEach(function(it){ nameByCode[it.code] = it.name.replace(/\s*\(社内:[^)]*\)\s*$/, ""); });
+
+const TYPE_LABEL = { heart: "♡ 気になる", line: "LINEで問い合わせ", dm: "DMで問い合わせ" };
+const TYPE_BADGE = { heart: "heart", line: "line", dm: "dm" };
+
+function fmtTime(iso){
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return iso;
+  const pad = function(n){ return String(n).padStart(2,"0"); };
+  return (d.getMonth()+1) + "/" + d.getDate() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+}
+
+function render(logs){
+  // 訪問者数(ユニーク)・閲覧数(PV)は商品アクションとは別集計
+  const totalVisitor = logs.filter(function(l){ return l.type === "visitor"; }).length;
+  const totalView = logs.filter(function(l){ return l.type === "view"; }).length;
+  document.getElementById("totalVisitor").textContent = totalVisitor;
+  document.getElementById("totalView").textContent = totalView;
+
+  const productLogs = logs.filter(function(l){ return l.type === "heart" || l.type === "line" || l.type === "dm"; });
+
+  const counts = {}; // code -> {heart,line,dm}
+  let totalHeart = 0, totalLine = 0, totalDm = 0;
+
+  productLogs.forEach(function(l){
+    if(!counts[l.code]) counts[l.code] = { heart:0, line:0, dm:0 };
+    if(l.type === "heart"){ counts[l.code].heart++; totalHeart++; }
+    else if(l.type === "line"){ counts[l.code].line++; totalLine++; }
+    else if(l.type === "dm"){ counts[l.code].dm++; totalDm++; }
+  });
+
+  document.getElementById("totalHeart").textContent = totalHeart;
+  document.getElementById("totalLine").textContent = totalLine;
+  document.getElementById("totalDm").textContent = totalDm;
+
+  const rankBody = document.getElementById("rankBody");
+  const rows = Object.keys(counts).map(function(code){
+    const c = counts[code];
+    return { code: code, name: nameByCode[code] || "", total: c.heart + c.line + c.dm, c: c };
+  }).sort(function(a,b){ return b.total - a.total; });
+
+  rankBody.innerHTML = "";
+  document.getElementById("rankEmpty").style.display = rows.length ? "none" : "block";
+  rows.forEach(function(r){
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td class="rcode">' + r.code + '</td>' +
+      '<td class="rname">' + r.name + '</td>' +
+      '<td class="num">' + (r.c.heart || "") + '</td>' +
+      '<td class="num">' + (r.c.line || "") + '</td>' +
+      '<td class="num">' + (r.c.dm || "") + '</td>';
+    rankBody.appendChild(tr);
+  });
+
+  const feedList = document.getElementById("feedList");
+  feedList.innerHTML = "";
+  const recent = productLogs.slice().sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); }).slice(0, 100);
+  document.getElementById("feedEmpty").style.display = recent.length ? "none" : "block";
+  recent.forEach(function(l){
+    const row = document.createElement("div");
+    row.className = "feedRow";
+    const badge = TYPE_BADGE[l.type] || "";
+    const label = TYPE_LABEL[l.type] || l.type;
+    row.innerHTML =
+      '<div class="feedTime">' + fmtTime(l.timestamp) + '</div>' +
+      '<div class="feedCode">' + l.code + '</div>' +
+      '<div class="feedType"><span class="badge ' + badge + '">' + label + '</span> ' +
+        '<span class="rname">' + (nameByCode[l.code] || "") + '</span></div>';
+    feedList.appendChild(row);
+  });
+}
+
+function load(){
+  if(!APPS_SCRIPT_URL){
+    statusEl.textContent = "上のURL欄にApps ScriptのURLを入力してください";
+    render([]);
+    return;
+  }
+  statusEl.textContent = "読み込み中...";
+  fetch(APPS_SCRIPT_URL + "?action=getLogs")
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      render(data.logs || []);
+      statusEl.textContent = "最新の状態を取得しました(自動更新はされません。更新するには再読み込みしてください)";
+    })
+    .catch(function(){
+      statusEl.textContent = "読み込みに失敗しました(URLを確認してください)";
+      render([]);
+    });
+}
+
+load();
+</script>
+
+</body>
+</html>

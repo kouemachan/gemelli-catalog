@@ -922,6 +922,19 @@ function logAction(code, type){
   }).catch(function(){ /* 通信エラーは無視(体験を止めない) */ });
 }
 
+/* ---- 訪問者カウンター(社内アクセス解析ページ用) ---- */
+(function(){
+  try{
+    let vid = localStorage.getItem("gemelli_visitor_id");
+    if(!vid){
+      vid = "v" + Date.now().toString(36) + Math.random().toString(36).slice(2,10);
+      localStorage.setItem("gemelli_visitor_id", vid);
+      logAction(vid, "visitor"); // このブラウザでの初回訪問
+    }
+    logAction(vid, "view"); // ページを開くたびに記録(閲覧数)
+  }catch(e){ /* localStorage不可の環境は無視 */ }
+})();
+
 function applySoldStatus(items){
   items.forEach(function(item){
     document.querySelectorAll(".card").forEach(function(card){
