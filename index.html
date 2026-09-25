@@ -737,7 +737,7 @@ document.querySelectorAll(".card").forEach(function(card){
   heartBtn.addEventListener("click", function(){
     const added = toggleSaved(code, name);
     refreshHeartLabel();
-    if(added) logAction(code, "heart");
+    logAction(code, added ? "heart_on" : "heart_off");
   });
 
   const btnRow = document.createElement("div");
@@ -890,6 +890,7 @@ function renderMyCatalog(){
     btn.addEventListener("click", function(e){
       e.stopPropagation();
       toggleSaved(btn.dataset.code, "");
+      logAction(btn.dataset.code, "heart_off");
       document.querySelectorAll(".btn-heart").forEach(function(hb){
         if(hb.dataset.code === btn.dataset.code){
           hb.classList.remove("active");
