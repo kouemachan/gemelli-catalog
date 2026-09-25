@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEMELLI お客様アクション状況(社内用)</title>
+<style>
+  *{box-sizing:border-box;}
+  body{ margin:0; background:#f3f1ec; color:#222; font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; }
+  header{ padding:16px; text-align:center; border-bottom:2px solid #222; background:#fff; }
+  h1{ font-size:17px; margin:0 0 4px; }
+  .warn{ font-size:12px; color:#a33; font-weight:700; }
+  .status{ text-align:center; font-size:12px; color:#666; padding:8px; min-height:16px; }
+  main{ max-width:900px; margin:0 auto; padding:8px 12px 60px; }
+
+  #configBox{ margin:14px 0; padding:10px 12px; background:#fff; border:1px solid #ccc; }
+  #configBox label{ font-size:12px; color:#666; display:block; margin-bottom:6px; }
+  #configBox input{ width:100%; padding:8px; font-size:12px; border:1px solid #ccc; }
+
+  h2{ font-size:14px; margin:22px 0 8px; padding-bottom:4px; border-bottom:2px solid #222; }
+
+  .totalsGrid{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:#ccc;
+    border:1px solid #ccc; margin:14px 0;
+  }
+  .totalBox{ background:#fff; padding:10px 6px; text-align:center; }
+  .totalBox .num{ font-size:20px; font-weight:700; }
+  .totalBox .label{ font-size:11px; color:#666; margin-top:2px; }
+
+  table{ width:100%; border-collapse:collapse; font-size:12px; background:#fff; }
+  th, td{ text-align:left; padding:6px 8px; border:1px solid #ccc; }
+  th{ background:#e9e5da; font-weight:700; font-size:11px; white-space:nowrap; }
+  td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .code{ font-weight:700; white-space:nowrap; }
+  .type-heart_on{ color:#a33; font-weight:700; }
+  .type-heart_off{ color:#888; }
+  .type-line{ color:#276b27; font-weight:700; }
+  .type-dm{ color:#2a4a9e; font-weight:700; }
+  .type-visitor{ color:#8a6d1e; font-weight:700; }
+  .type-view{ color:#8a6d1e; }
+
+  #rawLogTable{ max-height:520px; overflow-y:auto; display:block; border:1px solid #ccc; }
+  #rawLogTable table{ width:100%; }
+  #rawLogTable thead th{ position:sticky; top:0; }
+
+  .empty{ text-align:center; color:#888; font-size:12px; padding:16px 0; background:#fff; border:1px solid #ccc; border-top:none; }
+  .note{ font-size:11px; color:#888; margin:4px 0 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>GEMELLI お客様アクション状況</h1>
+  <div class="warn">社内用ページです。お客様には共有しないでください</div>
+</header>
+
+<main>
+
+<div id="configBox" style="display:none;">
+  <label>Apps Script URL(初回のみ入力・自動保存されます)</label>
+  <input type="text" id="urlInput" placeholder="https://script.google.com/macros/s/.../exec">
+</div>
+
+<div class="status" id="statusMsg">読み込み中...</div>
+
+<h2>合計</h2>
+<div class="totalsGrid">
+  <div class="totalBox"><div class="num" id="totalVisitor">-</div><div class="label">訪問者数(ユニーク)</div></div>
+  <div class="totalBox"><div class="num" id="totalView">-</div><div class="label">閲覧数(PV)</div></div>
+  <div class="totalBox"><div class="num" id="totalLog">-</div><div class="label">全記録件数</div></div>
+  <div class="totalBox"><div class="num" id="totalHeartOn">-</div><div class="label">気になる押した</div></div>
+  <div class="totalBox"><div class="num" id="totalHeartOff">-</div><div class="label">気になる解除</div></div>
+  <div class="totalBox"><div class="num" id="totalLine">-</div><div class="label">LINE問い合わせ</div></div>
+  <div class="totalBox"><div class="num" id="totalDm">-</div><div class="label">DM問い合わせ</div></div>
+</div>
+
+<h2>商品別の内訳</h2>
+<table id="rankTable">
+  <thead>
+    <tr><th>品番</th><th>商品名</th><th class="num">気になる押した</th><th class="num">気になる解除</th><th class="num">LINE</th><th class="num">DM</th></tr>
+  </thead>
+  <tbody id="rankBody"></tbody>
+</table>
+<div class="empty" id="rankEmpty" style="display:none;">まだ反応がありません</div>
+
+<h2>全ログ(1件1件・新しい順)</h2>
+<p class="note">気になる/LINE/DM/訪問/閲覧、すべてのクリックをそのまま記録したものです(相殺・集計はしていません)</p>
+<div id="rawLogTable">
+  <table>
+    <thead>
+      <tr><th>日時</th><th>品番</th><th>商品名</th><th>種別</th></tr>
+    </thead>
+    <tbody id="rawLogBody"></tbody>
+  </table>
+</div>
+<div class="empty" id="rawLogEmpty" style="display:none;">まだ記録がありません</div>
+
+</main>
+
+<script>
+const ITEMS = [{"code": "D-1", "name": "Pt900 ダイヤモンドパヴェリング  (社内:12603853)"}, {"code": "D-2", "name": "Pt900 ダイヤモンドリング(フラワー)  (社内:12603855)"}, {"code": "D-3", "name": "Pt900 ダイヤモンドリング(フラワー)  (社内:12603858)"}, {"code": "D-4", "name": "K18YG ダイヤモンドリング(フラワー)  (社内:12603852)"}, {"code": "D-5", "name": "Pt900 ダイヤモンドリング(フラワー)  (社内:12603849)"}, {"code": "D-6", "name": "Pt900 5石ダイヤモンドエタニティリング  (社内:—)"}, {"code": "D-7", "name": "K18 5石ダイヤモンドエタニティリング  (社内:42603602)"}, {"code": "D-8", "name": "Pt950 V字ハーフエタニティリング  (社内:—)"}, {"code": "D-9", "name": "K18YG V字ハーフエタニティリング  (社内:—)"}, {"code": "D-10", "name": "K18PG V字ハーフエタニティリング  (社内:—)"}, {"code": "CD-1", "name": "Pt900 ファンシーディープイエローダイヤモンドリング  (社内:12603437)"}, {"code": "CD-2", "name": "K18PG ライトイエローダイヤモンドリング  (社内:12603505)"}, {"code": "CD-3", "name": "Pt900 トリートダイヤモンドリング  (社内:12603440)"}, {"code": "CD-4", "name": "Pt950 ファンシーインテンスイエローダイヤモンドリング(ハート)  (社内:12603783)"}, {"code": "CD-5", "name": "Pt950 ファンシーオレンジイエローダイヤモンドリング(ペアシェイプ)  (社内:12603785)"}, {"code": "CS-1", "name": "Pt900 スフェーンリング  (社内:42603598)"}, {"code": "CS-2", "name": "Pt900 マリガーネットリング  (社内:42603634)"}, {"code": "CS-3", "name": "Pt900 アレキサンドライトリング  (社内:42603615)"}, {"code": "CS-4", "name": "K18 モルガナイトリング  (社内:42603621)"}, {"code": "CS-5", "name": "Pt900 ピジョンブラッドルビーリング  (社内:42603596)"}, {"code": "CS-6", "name": "K18 コーネルピンリング  (社内:12603584)"}, {"code": "N-1", "name": "K18 ライトグリニッシュイエローダイヤモンドネックレス  (社内:12602831)"}, {"code": "N-2", "name": "Pt900/850 非加熱ピジョンブラッドルビーネックレス  (社内:12603586)"}, {"code": "N-3", "name": "Pt900/950 アウイナイトネックレス  (社内:12603117)"}, {"code": "N-4", "name": "Pt900/950 ベニトアイトネックレス  (社内:12603135)"}, {"code": "N-5", "name": "Pt900/850 スフェーンネックレス(馬蹄)  (社内:12603590)"}, {"code": "N-6", "name": "Pt950/850 ダイヤモンドネックレス(マーキス)  (社内:42603531)"}, {"code": "F-1", "name": "Pt900 ダイヤリング枠(空枠)  (社内:12603861)"}, {"code": "F-2", "name": "K18YG ダイヤリング枠(空枠)  (社内:12603865)"}, {"code": "F-3", "name": "Pt900 ダイヤリング枠(空枠)  (社内:12603868)"}, {"code": "F-4", "name": "Pt900 ダイヤリング枠(空枠)  (社内:12603869)"}, {"code": "F-5", "name": "Pt900 ダイヤモンドピアス枠(空枠)  (社内:12603842)"}, {"code": "F-6", "name": "Pt900 ダイヤピアス枠(空枠)  (社内:12603846)"}];
+let APPS_SCRIPT_URL = localStorage.getItem("gemelli_admin_gas_url") || "https://script.google.com/macros/s/AKfycbxjxn_d-_nPpJ0cmAW1Wr7_wfQyVOUiOHQPyHwTnPI7f9PdjpmtXrIBHsx2Sbgva00n/exec";
+
+const statusEl = document.getElementById("statusMsg");
+const configBox = document.getElementById("configBox");
+const urlInput = document.getElementById("urlInput");
+
+if(!APPS_SCRIPT_URL){
+  configBox.style.display = "block";
+}
+urlInput.value = APPS_SCRIPT_URL;
+urlInput.addEventListener("change", function(){
+  APPS_SCRIPT_URL = urlInput.value.trim();
+  localStorage.setItem("gemelli_admin_gas_url", APPS_SCRIPT_URL);
+  load();
+});
+
+const nameByCode = {};
+ITEMS.forEach(function(it){ nameByCode[it.code] = it.name.replace(/\s*\(社内:[^)]*\)\s*$/, ""); });
+
+const TYPE_LABEL = {
+  heart_on: "♡ 気になる 押した",
+  heart_off: "♡ 気になる 解除",
+  line: "LINEで問い合わせ",
+  dm: "DMで問い合わせ",
+  visitor: "★ 新規訪問者",
+  view: "・閲覧(ページを開いた)"
+};
+
+function fmtTime(iso){
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return iso;
+  const pad = function(n){ return String(n).padStart(2,"0"); };
+  return d.getFullYear() + "/" + pad(d.getMonth()+1) + "/" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+}
+
+function render(logs){
+  // ---- 合計 ----
+  const totalVisitor = logs.filter(function(l){ return l.type === "visitor"; }).length;
+  const totalView = logs.filter(function(l){ return l.type === "view"; }).length;
+  const totalHeartOn = logs.filter(function(l){ return l.type === "heart_on"; }).length;
+  const totalHeartOff = logs.filter(function(l){ return l.type === "heart_off"; }).length;
+  const totalLine = logs.filter(function(l){ return l.type === "line"; }).length;
+  const totalDm = logs.filter(function(l){ return l.type === "dm"; }).length;
+
+  document.getElementById("totalVisitor").textContent = totalVisitor;
+  document.getElementById("totalView").textContent = totalView;
+  document.getElementById("totalLog").textContent = logs.length;
+  document.getElementById("totalHeartOn").textContent = totalHeartOn;
+  document.getElementById("totalHeartOff").textContent = totalHeartOff;
+  document.getElementById("totalLine").textContent = totalLine;
+  document.getElementById("totalDm").textContent = totalDm;
+
+  // ---- 商品別の内訳(気になるON/OFFを別カウント、相殺しない) ----
+  const productTypes = { heart_on:1, heart_off:1, line:1, dm:1 };
+  const productLogs = logs.filter(function(l){ return productTypes[l.type]; });
+
+  const counts = {};
+  productLogs.forEach(function(l){
+    if(!counts[l.code]) counts[l.code] = { heart_on:0, heart_off:0, line:0, dm:0 };
+    counts[l.code][l.type] = (counts[l.code][l.type] || 0) + 1;
+  });
+
+  const rankBody = document.getElementById("rankBody");
+  rankBody.innerHTML = "";
+  const rows = Object.keys(counts).map(function(code){
+    const c = counts[code];
+    return { code: code, name: nameByCode[code] || "", total: c.heart_on + c.heart_off + c.line + c.dm, c: c };
+  }).sort(function(a,b){ return b.total - a.total; });
+
+  document.getElementById("rankEmpty").style.display = rows.length ? "none" : "block";
+  rows.forEach(function(r){
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td class="code">' + r.code + '</td>' +
+      '<td>' + r.name + '</td>' +
+      '<td class="num">' + (r.c.heart_on || 0) + '</td>' +
+      '<td class="num">' + (r.c.heart_off || 0) + '</td>' +
+      '<td class="num">' + (r.c.line || 0) + '</td>' +
+      '<td class="num">' + (r.c.dm || 0) + '</td>';
+    rankBody.appendChild(tr);
+  });
+
+  // ---- 全ログ(1件1件・新しい順) ----
+  const rawBody = document.getElementById("rawLogBody");
+  rawBody.innerHTML = "";
+  const all = logs.slice().sort(function(a,b){ return new Date(b.timestamp) - new Date(a.timestamp); });
+  document.getElementById("rawLogEmpty").style.display = all.length ? "none" : "block";
+  all.forEach(function(l){
+    const tr = document.createElement("tr");
+    const label = TYPE_LABEL[l.type] || l.type;
+    const isSiteWide = (l.type === "visitor" || l.type === "view");
+    tr.innerHTML =
+      '<td>' + fmtTime(l.timestamp) + '</td>' +
+      '<td class="code">' + (isSiteWide ? "-" : l.code) + '</td>' +
+      '<td>' + (isSiteWide ? "" : (nameByCode[l.code] || "")) + '</td>' +
+      '<td class="type-' + l.type + '">' + label + '</td>';
+    rawBody.appendChild(tr);
+  });
+}
+
+function load(){
+  if(!APPS_SCRIPT_URL){
+    statusEl.textContent = "上のURL欄にApps ScriptのURLを入力してください";
+    render([]);
+    return;
+  }
+  statusEl.textContent = "読み込み中...";
+  fetch(APPS_SCRIPT_URL + "?action=getLogs")
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      render(data.logs || []);
+      statusEl.textContent = "最新の状態を取得しました(自動更新はされません。更新するには再読み込みしてください)";
+    })
+    .catch(function(){
+      statusEl.textContent = "読み込みに失敗しました(URLを確認してください)";
+      render([]);
+    });
+}
+
+load();
+</script>
+
+</body>
+</html>
