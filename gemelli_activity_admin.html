@@ -45,6 +45,19 @@
 
   .empty{ text-align:center; color:#888; font-size:12px; padding:16px 0; background:#fff; border:1px solid #ccc; border-top:none; }
   .note{ font-size:11px; color:#888; margin:4px 0 0; }
+
+  #filterBox{ margin:14px 0; padding:10px 12px; background:#fff; border:1px solid #ccc; display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; }
+  #filterBox .fld{ display:flex; flex-direction:column; }
+  #filterBox label{ font-size:11px; color:#666; margin-bottom:4px; }
+  #filterBox input[type="date"]{ padding:6px; font-size:12px; border:1px solid #ccc; }
+  #filterBox button{ padding:7px 14px; font-size:12px; border:1px solid #222; background:#222; color:#fff; cursor:pointer; }
+  #filterBox button.secondary{ background:#fff; color:#222; }
+
+  .hourTable td.bar{ width:60%; }
+  .hourBar{ background:#8a6d1e; height:12px; display:inline-block; vertical-align:middle; }
+
+  #reportBox textarea{ width:100%; height:220px; font-size:12px; padding:8px; border:1px solid #ccc; box-sizing:border-box; white-space:pre; font-family:monospace; }
+  #reportBox button{ margin-top:8px; padding:8px 16px; font-size:12px; border:1px solid #222; background:#222; color:#fff; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -63,6 +76,20 @@
 
 <div class="status" id="statusMsg">読み込み中...</div>
 
+<div id="filterBox">
+  <div class="fld">
+    <label>集計期間(開始日)</label>
+    <input type="date" id="filterFrom">
+  </div>
+  <div class="fld">
+    <label>集計期間(終了日)</label>
+    <input type="date" id="filterTo">
+  </div>
+  <button id="filterApplyBtn">この期間で絞り込む</button>
+  <button class="secondary" id="filterClearBtn">全期間に戻す</button>
+</div>
+<p class="note">※ライブ配信ごとの数字を見たいときは、その日(または期間)で絞り込んでください。日付を指定しなければ全期間の合計になります。</p>
+
 <h2>合計</h2>
 <div class="totalsGrid">
   <div class="totalBox"><div class="num" id="totalVisitor">-</div><div class="label">訪問者数(ユニーク)</div></div>
@@ -72,7 +99,16 @@
   <div class="totalBox"><div class="num" id="totalHeartOff">-</div><div class="label">気になる解除</div></div>
   <div class="totalBox"><div class="num" id="totalLine">-</div><div class="label">LINE問い合わせ</div></div>
   <div class="totalBox"><div class="num" id="totalDm">-</div><div class="label">DM問い合わせ</div></div>
+  <div class="totalBox"><div class="num" id="totalRepeat">-</div><div class="label">リピーター人数(2日以上訪問)</div></div>
+  <div class="totalBox"><div class="num" id="totalRepeatRate">-</div><div class="label">リピート率</div></div>
 </div>
+<p class="note">※「リピーター」は、お使いのブラウザに保存されるID(端末・ブラウザ単位)で判定しています。IPアドレスでの判定ではないため、同じ人でも別のスマホ/PCや別ブラウザで見た場合、ブラウザの履歴を消した場合は別カウントになります。</p>
+
+<h2>時間帯別アクセス</h2>
+<table id="hourTable" class="hourTable">
+  <thead><tr><th>時間帯</th><th class="num">閲覧数</th><th>目安</th></tr></thead>
+  <tbody id="hourBody"></tbody>
+</table>
 
 <h2>商品別の内訳</h2>
 <table id="rankTable">
@@ -94,6 +130,13 @@
   </table>
 </div>
 <div class="empty" id="rawLogEmpty" style="display:none;">まだ記録がありません</div>
+
+<h2>レポート</h2>
+<div id="reportBox">
+  <p class="note">今表示中の集計期間の内容をテキストにまとめます。ライブが終わったら「レポートを作成」→内容をコピーして記録用に使ってください。</p>
+  <button id="reportBtn">レポートを作成</button>
+  <textarea id="reportText" readonly placeholder="ここにレポートが表示されます"></textarea>
+</div>
 
 </main>
 
@@ -134,6 +177,15 @@ function fmtTime(iso){
   return d.getFullYear() + "/" + pad(d.getMonth()+1) + "/" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
 }
 
+function dateKey(iso){
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return String(iso).slice(0,10);
+  const pad = function(n){ return String(n).padStart(2,"0"); };
+  return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
+}
+
+let lastReportData = null;
+
 function render(logs){
   // ---- 合計 ----
   const totalVisitor = logs.filter(function(l){ return l.type === "visitor"; }).length;
@@ -143,6 +195,20 @@ function render(logs){
   const totalLine = logs.filter(function(l){ return l.type === "line"; }).length;
   const totalDm = logs.filter(function(l){ return l.type === "dm"; }).length;
 
+  // ---- リピーター(同じブラウザIDが2日以上訪問) ----
+  const visitDatesByVisitor = {};
+  logs.forEach(function(l){
+    if(l.type === "visitor" || l.type === "view"){
+      if(!visitDatesByVisitor[l.code]) visitDatesByVisitor[l.code] = new Set();
+      visitDatesByVisitor[l.code].add(dateKey(l.timestamp));
+    }
+  });
+  const visitorIds = Object.keys(visitDatesByVisitor);
+  const repeatVisitors = visitorIds.filter(function(id){ return visitDatesByVisitor[id].size >= 2; });
+  const totalRepeat = repeatVisitors.length;
+  const uniqueVisitorCount = visitorIds.length;
+  const repeatRate = uniqueVisitorCount ? Math.round((totalRepeat / uniqueVisitorCount) * 1000) / 10 : 0;
+
   document.getElementById("totalVisitor").textContent = totalVisitor;
   document.getElementById("totalView").textContent = totalView;
   document.getElementById("totalLog").textContent = logs.length;
@@ -150,6 +216,29 @@ function render(logs){
   document.getElementById("totalHeartOff").textContent = totalHeartOff;
   document.getElementById("totalLine").textContent = totalLine;
   document.getElementById("totalDm").textContent = totalDm;
+  document.getElementById("totalRepeat").textContent = totalRepeat;
+  document.getElementById("totalRepeatRate").textContent = uniqueVisitorCount ? (repeatRate + "%") : "-";
+
+  // ---- 時間帯別アクセス(訪問+閲覧) ----
+  const hourCounts = new Array(24).fill(0);
+  logs.forEach(function(l){
+    if(l.type === "visitor" || l.type === "view"){
+      const d = new Date(l.timestamp);
+      if(!isNaN(d.getTime())) hourCounts[d.getHours()]++;
+    }
+  });
+  const maxHour = Math.max.apply(null, hourCounts.concat([1]));
+  const hourBody = document.getElementById("hourBody");
+  hourBody.innerHTML = "";
+  hourCounts.forEach(function(cnt, h){
+    const tr = document.createElement("tr");
+    const barWidth = Math.round((cnt / maxHour) * 100);
+    tr.innerHTML =
+      '<td>' + String(h).padStart(2,"0") + '時台</td>' +
+      '<td class="num">' + cnt + '</td>' +
+      '<td class="bar"><span class="hourBar" style="width:' + barWidth + '%"></span></td>';
+    hourBody.appendChild(tr);
+  });
 
   // ---- 商品別の内訳(気になるON/OFFを別カウント、相殺しない) ----
   const productTypes = { heart_on:1, heart_off:1, line:1, dm:1 };
@@ -197,6 +286,31 @@ function render(logs){
       '<td class="type-' + l.type + '">' + label + '</td>';
     rawBody.appendChild(tr);
   });
+
+  // レポート作成用に保持
+  lastReportData = {
+    totalVisitor: totalVisitor, totalView: totalView, totalLog: logs.length,
+    totalHeartOn: totalHeartOn, totalHeartOff: totalHeartOff, totalLine: totalLine, totalDm: totalDm,
+    totalRepeat: totalRepeat, uniqueVisitorCount: uniqueVisitorCount, repeatRate: repeatRate,
+    hourCounts: hourCounts, rankRows: rows,
+    fromLabel: (document.getElementById("filterFrom").value || "指定なし"),
+    toLabel: (document.getElementById("filterTo").value || "指定なし")
+  };
+}
+
+let allLogs = [];
+
+function applyFilterAndRender(){
+  const fromVal = document.getElementById("filterFrom").value;
+  const toVal = document.getElementById("filterTo").value;
+  let logs = allLogs;
+  if(fromVal){
+    logs = logs.filter(function(l){ return dateKey(l.timestamp) >= fromVal; });
+  }
+  if(toVal){
+    logs = logs.filter(function(l){ return dateKey(l.timestamp) <= toVal; });
+  }
+  render(logs);
 }
 
 function load(){
@@ -209,14 +323,58 @@ function load(){
   fetch(APPS_SCRIPT_URL + "?action=getLogs")
     .then(function(r){ return r.json(); })
     .then(function(data){
-      render(data.logs || []);
+      allLogs = data.logs || [];
+      applyFilterAndRender();
       statusEl.textContent = "最新の状態を取得しました(自動更新はされません。更新するには再読み込みしてください)";
     })
     .catch(function(){
       statusEl.textContent = "読み込みに失敗しました(URLを確認してください)";
+      allLogs = [];
       render([]);
     });
 }
+
+document.getElementById("filterApplyBtn").addEventListener("click", applyFilterAndRender);
+document.getElementById("filterClearBtn").addEventListener("click", function(){
+  document.getElementById("filterFrom").value = "";
+  document.getElementById("filterTo").value = "";
+  applyFilterAndRender();
+});
+
+document.getElementById("reportBtn").addEventListener("click", function(){
+  if(!lastReportData){ return; }
+  const d = lastReportData;
+  const now = new Date();
+  const pad = function(n){ return String(n).padStart(2,"0"); };
+  const createdAt = now.getFullYear() + "/" + pad(now.getMonth()+1) + "/" + pad(now.getDate()) + " " + pad(now.getHours()) + ":" + pad(now.getMinutes());
+
+  let maxHourIdx = 0;
+  d.hourCounts.forEach(function(c, i){ if(c > d.hourCounts[maxHourIdx]) maxHourIdx = i; });
+
+  const topItems = d.rankRows.slice(0, 5).map(function(r, i){
+    return (i+1) + ". " + r.code + " " + r.name + "  (気になる+" + r.c.heart_on + " / -" + r.c.heart_off + ", LINE:" + r.c.line + ", DM:" + r.c.dm + ")";
+  }).join("\n");
+
+  const text =
+"【GEMELLI カタログ アクションレポート】\n" +
+"作成日時: " + createdAt + "\n" +
+"集計期間: " + d.fromLabel + " 〜 " + d.toLabel + "\n" +
+"\n" +
+"■ 合計\n" +
+"訪問者数(ユニーク): " + d.totalVisitor + "\n" +
+"閲覧数(PV): " + d.totalView + "\n" +
+"リピーター人数(2日以上訪問): " + d.totalRepeat + " / " + d.uniqueVisitorCount + "人中 (" + (d.uniqueVisitorCount ? d.repeatRate : 0) + "%)\n" +
+"気になる 押した: " + d.totalHeartOn + " / 解除: " + d.totalHeartOff + "\n" +
+"LINE問い合わせ: " + d.totalLine + "\n" +
+"DM問い合わせ: " + d.totalDm + "\n" +
+"\n" +
+"■ 一番アクセスが多かった時間帯: " + pad(maxHourIdx) + "時台 (" + d.hourCounts[maxHourIdx] + "件)\n" +
+"\n" +
+"■ 反応が多かった商品TOP5\n" +
+(topItems || "(まだ反応がありません)");
+
+  document.getElementById("reportText").value = text;
+});
 
 load();
 </script>
