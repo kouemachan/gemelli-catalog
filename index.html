@@ -468,7 +468,7 @@
 /* ===== 価格表示スイッチ =====
    false … 価格を出さない(10/6 公開時)
    true  … 全商品に価格を表示(価格未設定の商品は出ない) */
-const SHOW_PRICE = false;
+const SHOW_PRICE = true;
 if(!SHOW_PRICE){ document.querySelectorAll("footer .price-part").forEach(function(el){ el.remove(); }); }
 document.querySelectorAll(".card").forEach(function(card){
   const p = card.querySelector(".price");
