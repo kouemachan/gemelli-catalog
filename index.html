@@ -277,6 +277,17 @@
   #zoomNav button:disabled{ opacity:.25; }
   #zoomTip{ color:#CFC2E3; font-size:13px; margin-top:12px; }
 </style>
+<script>
+/* ライブ限定価格期間の終了(2026/11/10 0:00 日本時間)で、ありがとうページへ自動で切り替え */
+(function(){
+  var END = Date.parse("2026-11-10T00:00:00+09:00");
+  if (location.search.indexOf("view") !== -1) return; /* 社内確認用: URLの最後に ?view を付けると終了後も見られる */
+  function check(){ if (Date.now() >= END) location.replace("thanks.html"); }
+  check();
+  setInterval(check, 30000);
+  document.addEventListener("visibilitychange", function(){ if (!document.hidden) check(); });
+})();
+</script>
 </head>
 <body>
 
